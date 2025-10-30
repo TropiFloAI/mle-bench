@@ -1,0 +1,16 @@
+id: custom-task
+name: CUSTOM TASK NAME
+competition_type: simple
+awards_medals: false
+prizes: null
+description: /home/harry/.cache/mle-bench/data/new-task/description.md
+
+dataset:
+  answers: new-task/prepared/private/test.csv
+  sample_submission: new-task/prepared/public/sample_submission.csv
+
+grader:
+  name: accuracy # This can be changed
+  grade_fn: mlebench.competitions.new-task.grade:grade
+
+preparer: mlebench.competitions.new-task.prepare:prepare
