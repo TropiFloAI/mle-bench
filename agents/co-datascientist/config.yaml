@@ -1,0 +1,16 @@
+vars:
+  script_execution_timeout: &script_execution_timeout 7200
+  cli_timeout: &cli_timeout 86400
+  cli_max_iterations: &cli_max_iterations 100000
+  batch_size: &batch_size 5
+  ensemble_n: &ensemble_n 3
+
+co-datascientist:
+  start: co-datascientist/start.sh
+  dockerfile: co-datascientist/Dockerfile
+  env_vars: &env_vars
+    SCRIPT_EXECUTION_TIMEOUT: *script_execution_timeout
+    CLI_TIMEOUT: *cli_timeout
+    CLI_MAX_ITERATIONS: *cli_max_iterations
+    BATCH_SIZE: *batch_size
+    ENSEMBLE_N: *ensemble_n

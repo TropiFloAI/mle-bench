@@ -1,0 +1,187 @@
+Notes for getting initial baselines - run task with aide to get a file:
+` python ~/mle-bench/run_agent.py --competition-set experiments/splits/trial.txt --agent-id aide `
+Need to then update paths to test/training data and ensure "KPI: xxxx" is printed
+
+Add env variables for robustness for local testing and update file paths for data and submission:
+```train = pd.read_csv(os.path.join(os.environ.get("DATA_DIR"), "train.csv"))
+test = pd.read_csv(os.path.join(os.environ.get("DATA_DIR"),"test.csv"))
+submission.to_csv(os.path.join(os.environ.get("OUTPUT_DIR"), "submission.csv"), index=False)
+```
+
+
+For comparison - performance of baselines (spaceship-titanic, random-acts-of-pizza, spooky-author-identification):
+
+```{
+  "total_runs": 9,
+  "total_runs_with_submissions": 9,
+  "total_valid_submissions": 9,
+  "total_medals": 3,
+  "total_gold_medals": 0,
+  "total_silver_medals": 0,
+  "total_bronze_medals": 3,
+  "total_above_median": 3,
+  "competition_reports": [
+    {
+      "competition_id": "random-acts-of-pizza",
+      "score": 0.70502,
+      "gold_threshold": 0.97908,
+      "silver_threshold": 0.76482,
+      "bronze_threshold": 0.6921,
+      "median_threshold": 0.5995950000000001,
+      "any_medal": true,
+      "gold_medal": false,
+      "silver_medal": false,
+      "bronze_medal": true,
+      "above_median": true,
+      "submission_exists": true,
+      "valid_submission": true,
+      "is_lower_better": false,
+      "created_at": "2025-09-23T10:43:00.654179",
+      "submission_path": "/home/harry/mle-bench/runs/2025-09-23T10-38-06-GMT_run-group_co-datascientist/random-acts-of-pizza_3ed583da-b973-44e7-ac6a-7436384241ea/submission/submission.csv"
+    },
+    {
+      "competition_id": "random-acts-of-pizza",
+      "score": 0.70502,
+      "gold_threshold": 0.97908,
+      "silver_threshold": 0.76482,
+      "bronze_threshold": 0.6921,
+      "median_threshold": 0.5995950000000001,
+      "any_medal": true,
+      "gold_medal": false,
+      "silver_medal": false,
+      "bronze_medal": true,
+      "above_median": true,
+      "submission_exists": true,
+      "valid_submission": true,
+      "is_lower_better": false,
+      "created_at": "2025-09-23T10:43:00.665900",
+      "submission_path": "/home/harry/mle-bench/runs/2025-09-23T10-38-06-GMT_run-group_co-datascientist/random-acts-of-pizza_953dd9ff-8092-459d-9fb0-f3018958e7ae/submission/submission.csv"
+    },
+    {
+      "competition_id": "random-acts-of-pizza",
+      "score": 0.70502,
+      "gold_threshold": 0.97908,
+      "silver_threshold": 0.76482,
+      "bronze_threshold": 0.6921,
+      "median_threshold": 0.5995950000000001,
+      "any_medal": true,
+      "gold_medal": false,
+      "silver_medal": false,
+      "bronze_medal": true,
+      "above_median": true,
+      "submission_exists": true,
+      "valid_submission": true,
+      "is_lower_better": false,
+      "created_at": "2025-09-23T10:43:00.676986",
+      "submission_path": "/home/harry/mle-bench/runs/2025-09-23T10-38-06-GMT_run-group_co-datascientist/random-acts-of-pizza_aea8c597-d1db-4718-9d60-92d962710f48/submission/submission.csv"
+    },
+    {
+      "competition_id": "spaceship-titanic",
+      "score": 0.78966,
+      "gold_threshold": 0.82066,
+      "silver_threshold": 0.81388,
+      "bronze_threshold": 0.80967,
+      "median_threshold": 0.79565,
+      "any_medal": false,
+      "gold_medal": false,
+      "silver_medal": false,
+      "bronze_medal": false,
+      "above_median": false,
+      "submission_exists": true,
+      "valid_submission": true,
+      "is_lower_better": false,
+      "created_at": "2025-09-23T10:43:00.693375",
+      "submission_path": "/home/harry/mle-bench/runs/2025-09-23T10-38-06-GMT_run-group_co-datascientist/spaceship-titanic_e5b68db4-9e3e-42f2-a666-7cafc507a477/submission/submission.csv"
+    },
+    {
+      "competition_id": "spaceship-titanic",
+      "score": 0.78966,
+      "gold_threshold": 0.82066,
+      "silver_threshold": 0.81388,
+      "bronze_threshold": 0.80967,
+      "median_threshold": 0.79565,
+      "any_medal": false,
+      "gold_medal": false,
+      "silver_medal": false,
+      "bronze_medal": false,
+      "above_median": false,
+      "submission_exists": true,
+      "valid_submission": true,
+      "is_lower_better": false,
+      "created_at": "2025-09-23T10:43:00.708018",
+      "submission_path": "/home/harry/mle-bench/runs/2025-09-23T10-38-06-GMT_run-group_co-datascientist/spaceship-titanic_b296f676-b862-4793-8e5f-fb7441a87aee/submission/submission.csv"
+    },
+    {
+      "competition_id": "spaceship-titanic",
+      "score": 0.78966,
+      "gold_threshold": 0.82066,
+      "silver_threshold": 0.81388,
+      "bronze_threshold": 0.80967,
+      "median_threshold": 0.79565,
+      "any_medal": false,
+      "gold_medal": false,
+      "silver_medal": false,
+      "bronze_medal": false,
+      "above_median": false,
+      "submission_exists": true,
+      "valid_submission": true,
+      "is_lower_better": false,
+      "created_at": "2025-09-23T10:43:00.722670",
+      "submission_path": "/home/harry/mle-bench/runs/2025-09-23T10-38-06-GMT_run-group_co-datascientist/spaceship-titanic_bb045d24-ab4b-4897-aba3-2f0b21fe0e56/submission/submission.csv"
+    },
+    {
+      "competition_id": "spooky-author-identification",
+      "score": 0.53039,
+      "gold_threshold": 0.16506,
+      "silver_threshold": 0.26996,
+      "bronze_threshold": 0.29381,
+      "median_threshold": 0.418785,
+      "any_medal": false,
+      "gold_medal": false,
+      "silver_medal": false,
+      "bronze_medal": false,
+      "above_median": false,
+      "submission_exists": true,
+      "valid_submission": true,
+      "is_lower_better": true,
+      "created_at": "2025-09-23T10:43:00.744978",
+      "submission_path": "/home/harry/mle-bench/runs/2025-09-23T10-38-06-GMT_run-group_co-datascientist/spooky-author-identification_94b384b7-7474-4caa-b238-ed2ec1c38d70/submission/submission.csv"
+    },
+    {
+      "competition_id": "spooky-author-identification",
+      "score": 0.53039,
+      "gold_threshold": 0.16506,
+      "silver_threshold": 0.26996,
+      "bronze_threshold": 0.29381,
+      "median_threshold": 0.418785,
+      "any_medal": false,
+      "gold_medal": false,
+      "silver_medal": false,
+      "bronze_medal": false,
+      "above_median": false,
+      "submission_exists": true,
+      "valid_submission": true,
+      "is_lower_better": true,
+      "created_at": "2025-09-23T10:43:00.766535",
+      "submission_path": "/home/harry/mle-bench/runs/2025-09-23T10-38-06-GMT_run-group_co-datascientist/spooky-author-identification_4c8ca892-87f7-4d42-b589-bdfd084d5e23/submission/submission.csv"
+    },
+    {
+      "competition_id": "spooky-author-identification",
+      "score": 0.53039,
+      "gold_threshold": 0.16506,
+      "silver_threshold": 0.26996,
+      "bronze_threshold": 0.29381,
+      "median_threshold": 0.418785,
+      "any_medal": false,
+      "gold_medal": false,
+      "silver_medal": false,
+      "bronze_medal": false,
+      "above_median": false,
+      "submission_exists": true,
+      "valid_submission": true,
+      "is_lower_better": true,
+      "created_at": "2025-09-23T10:43:00.786871",
+      "submission_path": "/home/harry/mle-bench/runs/2025-09-23T10-38-06-GMT_run-group_co-datascientist/spooky-author-identification_b042f86a-fb46-4e5d-b221-78155f2473a8/submission/submission.csv"
+    }
+  ]
+}```

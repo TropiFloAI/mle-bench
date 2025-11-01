@@ -1,0 +1,32 @@
+[project]
+name = "co-datascientist-mle-agent"
+version = "0.1.0"
+description = "MLE-Bench adapter for co-datascientist-engine"
+requires-python = ">=3.12,<3.13"
+
+dependencies = [
+    # Core engine - installed as a package!
+    "co-datascientist-engine",
+    
+    # Agent-specific dependencies for baselines
+    "torch",
+    "torchvision", 
+    "pandas>=2.0.0",
+    "scikit-learn",
+    "smolagents",
+    "openai",
+    "litellm",
+    "python-dotenv",
+]
+
+[tool.uv.sources]
+# For production/CI: install from GitHub
+co-datascientist-engine = { git = "https://github.com/TropiFloAI/co-datascientist-engine.git", branch = "master" }
+
+# For local development: uncomment the line below and comment out the line above
+# co-datascientist-engine = { path = "../../../co-datascientist-engine", editable = true }
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+

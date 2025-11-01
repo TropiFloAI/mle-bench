@@ -1,0 +1,31 @@
+# Exclude everything in parent directories we don't need
+# This makes Docker builds much faster
+
+# Exclude MLE-bench stuff we don't need
+../../../mle-bench/runs
+../../../mle-bench/cache
+../../../mle-bench/.git
+../../../mle-bench/venv
+../../../mle-bench/__pycache__
+../../../mle-bench/.pytest_cache
+../../../mle-bench/tests
+
+# Exclude engine stuff we don't need
+../../../co-datascientist-engine/.git
+../../../co-datascientist-engine/__pycache__
+../../../co-datascientist-engine/.pytest_cache
+../../../co-datascientist-engine/tests
+../../../co-datascientist-engine/logs
+../../../co-datascientist-engine/user_costs.json
+../../../co-datascientist-engine/workflow_insights
+../../../co-datascientist-engine/.venv
+../../../co-datascientist-engine/venv
+
+# Exclude backend entirely
+../../../co-datascientist-backend
+
+# Exclude other demo directories
+../../../demos
+../../../legacy
+../../../cache
+
