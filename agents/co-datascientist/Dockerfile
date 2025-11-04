@@ -16,6 +16,8 @@ ENV LOGS_DIR=${LOGS_DIR}
 ENV CODE_DIR=${CODE_DIR}
 ENV AGENT_DIR=${AGENT_DIR}
 ENV PYTHONPATH="${AGENT_DIR}:${AGENT_DIR}/adapter"
+# Set mlebench cache to writable location
+ENV MLEBENCH_CACHE_DIR="${SUBMISSION_DIR}/.mlebench_cache"
 
 # Create required directories
 RUN mkdir -p ${LOGS_DIR} ${CODE_DIR} ${AGENT_DIR} ${BASELINE_DIR}
@@ -34,9 +36,14 @@ RUN conda run -n ${CONDA_ENV_NAME} pip install /tmp/co-datascientist-engine && \
     rm -rf /tmp/co-datascientist-engine && \
     conda clean -afy
 
-# Install additional dependencies needed by baselines
+# Copy mlebench for grading functionality
+COPY mle-bench /tmp/mle-bench
+
+# Install mlebench and additional dependencies needed by baselines and iteration tracking
 RUN conda run -n ${CONDA_ENV_NAME} pip install \
-    torch torchvision pandas scikit-learn smolagents openai litellm python-dotenv && \
+    /tmp/mle-bench \
+    torch torchvision pandas scikit-learn smolagents openai litellm python-dotenv matplotlib && \
+    rm -rf /tmp/mle-bench && \
     conda clean -afy
 
 # Copy adapter orchestration code (NOT the engine - it's installed as a package!)

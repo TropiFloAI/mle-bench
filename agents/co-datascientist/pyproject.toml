@@ -17,6 +17,9 @@ dependencies = [
     "openai",
     "litellm",
     "python-dotenv",
+    
+    # For iteration tracking and plotting
+    "matplotlib>=3.5.0",
 ]
 
 [tool.uv.sources]

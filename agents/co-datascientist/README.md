@@ -1,525 +1,377 @@
-# Co-DataScientist MLE-Bench Agent
+# Co-DataScientist Agent for MLE-Bench
 
-This directory contains the **complete, self-contained benchmarking setup** for running the co-datascientist engine on [OpenAI's MLE-Bench testing suite](https://github.com/openai/mle-bench/).
+Production-ready agent with real-time KPI tracking and automatic grading.
 
-**Key Design**: The co-datascientist-engine is installed as a Python package (like a library), and this directory contains only the MLE-bench adapter/orchestration code. This keeps the engine code unchanged while providing a clean, consolidated benchmarking solution.
+## Quick Start
 
----
-
-## 🏗️ Architecture
-
-```
-mle-bench/agents/co-datascientist/
-├── adapter/                    # Orchestration layer
-│   ├── main.py                # Entry point for benchmark runs
-│   ├── cli_mle.py             # CLI wrapper for the engine
-│   └── handle_results.py      # Result processing & ensembling
-├── baselines/                 # Competition-specific baseline scripts
-│   ├── spaceship-titanic.py
-│   ├── random-acts-of-pizza.py
-│   └── ...
-├── Dockerfile                 # Agent Docker image (extends mlebench-env)
-├── pyproject.toml             # Package dependencies (installs engine!)
-├── config.yaml                # Runtime configuration
-├── start.sh                   # Container entry point
-├── run_benchmark.sh           # 🚀 Main runner script
-├── container.env.example      # Environment variables template
-└── README.md                  # This file
-```
-
-### How It Works
-
-1. **Base Image**: `mlebench-env` provides the MLE-bench infrastructure
-2. **Agent Image**: `co-datascientist` extends base, installs engine as package
-3. **Orchestration**: `run_agent.py` (from MLE-bench) spawns containers
-4. **Execution**: Containers run `start.sh` → `adapter/main.py` → engine workflow
-5. **Results**: Submissions saved to `mle-bench/runs/`, graded automatically
-
----
-
-## 📋 Prerequisites
-
-- **Docker**: For containerized execution
-- **Python 3.12**: With `uv` or `pip` for package management
-- **Git LFS**: For MLE-bench competition data
-- **API Keys**: Azure OpenAI API key for the engine
-
----
-
-## 🚀 Quick Start
-
-### 1. Clone and Setup MLE-Bench
+### 1. Setup Environment
 
 ```bash
-# Clone this repository (if not already done)
-cd /path/to/mle-bench
+cd /Users/ozkilim/Documents/mle-bench
 
-# Install MLE-bench in a virtual environment
-python3 -m venv venv
+# Activate virtual environment
 source venv/bin/activate
 
-# Pull competition data
-git lfs fetch --all
-git lfs pull
+# Ensure data is symlinked (don't move!)
+# If data is in ~/Downloads/competitions/:
+ln -s ~/Downloads/competitions ~/.mlebench/competitions
 
-# Install MLE-bench
-pip install -e .
-```
-
-### 2. Prepare Competition Data
-
-```bash
-# Prepare specific competitions
-mlebench prepare -c spaceship-titanic
+# Prepare a competition (example)
 mlebench prepare -c random-acts-of-pizza
-
-# Or prepare the full Lite dataset
-mlebench prepare --lite
 ```
 
-### 3. Configure API Keys
+### 2. Build Docker Image
 
 ```bash
-cd agents/co-datascientist
-
-# Copy the example and add your API key
-cp container.env.example container.env
-
-# Edit container.env and add:
-# AZURE_OPENAI_API_KEY=your_key_here
-```
-
-### 4. Build Docker Images
-
-```bash
-# From mle-bench root
-cd /path/to/mle-bench
-
-# Build base MLE-bench environment (first time only, ~10-15 min)
+# Build base environment (one time, ~5-10 minutes)
 docker build --platform=linux/amd64 -t mlebench-env -f environment/Dockerfile .
 
-# Build co-datascientist agent image (~2-5 min)
-docker build --platform=linux/amd64 \
-    -t co-datascientist \
-    -f agents/co-datascientist/Dockerfile \
-    agents/co-datascientist
+# Build co-datascientist agent
+cd /Users/ozkilim/Documents
+docker build --platform=linux/amd64 -t co-datascientist -f mle-bench/agents/co-datascientist/Dockerfile .
 ```
 
-### 5. Run Benchmarks! 🎯
+### 3. Run with Automatic Grading
 
 ```bash
-# Option A: Use the unified runner script (RECOMMENDED)
-./agents/co-datascientist/run_benchmark.sh
-
-# Option B: Manual execution with more control
-source venv/bin/activate
-python run_agent.py \
-    --competition-set experiments/splits/trial.txt \
-    --agent-id co-datascientist \
-    --n-workers 1 \
-    --n-seeds 1
-```
-
----
-
-## 📖 Detailed Usage
-
-### Running Specific Competitions
-
-Create a text file with competition IDs (one per line):
-
-```bash
-# experiments/splits/my-competitions.txt
-spaceship-titanic
-random-acts-of-pizza
-```
-
-Run with the custom competition set:
-
-```bash
-./agents/co-datascientist/run_benchmark.sh experiments/splits/my-competitions.txt 2 1
-#                                          ^competition file  ^workers ^seeds
-```
-
-### Runner Script Arguments
-
-```bash
-./run_benchmark.sh [COMPETITION_SET] [N_WORKERS] [N_SEEDS]
-```
-
-- `COMPETITION_SET`: Path to txt file with competition IDs (default: `experiments/splits/trial.txt`)
-- `N_WORKERS`: Number of parallel Docker containers (default: 1)
-- `N_SEEDS`: Number of times to run each task (default: 1)
-
-**Examples:**
-
-```bash
-# Run trial competitions with 1 worker
-./run_benchmark.sh
-
-# Run custom set with 4 parallel workers, 3 trials each
-./run_benchmark.sh experiments/splits/custom.txt 4 3
-
-# Run lite set with 10 workers
-./run_benchmark.sh experiments/splits/lite.txt 10 1
-```
-
-### Manual Execution
-
-For more control, run directly with `run_agent.py`:
-
-```bash
+cd /Users/ozkilim/Documents/mle-bench
 source venv/bin/activate
 
+# Create competition list
+echo "random-acts-of-pizza" > /tmp/competitions.txt
+
+# Start agent run
 python run_agent.py \
-    --competition-set experiments/splits/my-comps.txt \
-    --agent-id co-datascientist \
-    --n-workers 4 \
-    --n-seeds 1 \
-    --retain  # Optional: keep containers for debugging
+  --agent-id co-datascientist \
+  --competition-set /tmp/competitions.txt \
+  --n-workers 1 \
+  --n-seeds 1 \
+  > agent_run.log 2>&1 &
+
+# Wait ~20 seconds for run to start, then get run directory
+sleep 20
+LATEST=$(ls -td runs/*co-datascientist*/*/ 2>/dev/null | head -1)
+echo "Run directory: $LATEST"
+
+# Start auto-grader watcher for real-time grading
+python agents/co-datascientist/utils/auto_grader_watcher.py "$LATEST" &
+echo "Auto-grader started - will grade each iteration automatically"
 ```
 
-### Grading Results
-
-Results are automatically graded by the runner script. To manually grade:
+### 4. Monitor Progress
 
 ```bash
-# Find the most recent run
-RUN_DIR=$(ls -td runs/*/ | head -1)
+# Watch tracking data update in real-time
+watch -n 10 "cat $LATEST/submission/iteration_tracking.json | python3 -m json.tool | head -50"
 
-# Create submission file
-python experiments/make_submission.py \
-    --metadata $RUN_DIR/metadata.json \
-    --output $RUN_DIR/submission.jsonl
+# Or check the plot periodically (no auto-popup)
+open "$LATEST/submission/kpi_progression.png"
 
-# Grade it
-mlebench grade \
-    --submission $RUN_DIR/submission.jsonl \
-    --output-dir $RUN_DIR
-
-# View results
-cat $RUN_DIR/*_grading_report.json
+# Check agent logs
+tail -f $LATEST/run.log
 ```
 
----
+## What You Get
 
-## ⚙️ Configuration
+### Real-Time Tracking Plot
 
-### Runtime Configuration (`config.yaml`)
+Located at: `runs/<run-group>/<competition>/submission/kpi_progression.png`
 
-Adjust these values to control agent behavior:
+The plot shows:
+- **Blue line (•)**: Validation KPI for each iteration
+- **Orange line (■)**: Test KPI for each graded iteration
+- **Gold/Silver/Bronze lines**: Medal thresholds
+- **X-axis**: Iteration number + timestamp (e.g., "#1\n14:50:52")
+- **Yellow annotation**: Best validation KPI
 
+### Tracking Data
+
+Located at: `runs/<run-group>/<competition>/submission/iteration_tracking.json`
+
+Contains:
+```json
+{
+  "competition_id": "random-acts-of-pizza",
+  "started_at": "2025-11-04T14:50:49.828701",
+  "iterations": [
+    {
+      "iteration": 1,
+      "timestamp": "2025-11-04T14:50:52.025157",
+      "val_kpi": 0.7304,
+      "test_kpi": 0.70502,  ← Automatically graded
+      "test_score_details": {
+        "bronze_medal": true  ← Medal achieved!
+      },
+      "code_version_id": "..."
+    }
+  ],
+  "medal_thresholds": {
+    "gold": 0.97908,
+    "silver": 0.76482,
+    "bronze": 0.6921
+  }
+}
+```
+
+### Output Files
+
+All files saved to: `runs/<run-group>/<competition>/submission/`
+
+- `iteration_tracking.json` - Complete tracking data
+- `kpi_progression.png` - Live-updating plot
+- `submission_iterN.csv` - Submission for iteration N
+- `submission.csv` - Current best submission
+- `performance_summary.json` - Final results
+
+## How It Works
+
+### Architecture
+
+```
+┌─────────────────────────────────────┐
+│     CONTAINER (Agent)               │
+│                                     │
+│  Each iteration:                    │
+│   1. Generate code                  │
+│   2. Evaluate (get val_kpi)        │
+│   3. Save submission_iterN.csv     │
+│   4. Update tracking JSON          │
+│   5. Create .grade_trigger_iterN   │◄─── Trigger file
+└─────────────────────────────────────┘
+              ↓
+    (Host detects trigger)
+              ↓
+┌─────────────────────────────────────┐
+│     HOST (Auto-Grader)              │
+│                                     │
+│  Every 5 seconds:                   │
+│   1. Check for trigger files        │
+│   2. Grade submission_iterN.csv     │
+│   3. Update tracking JSON           │
+│   4. Generate complete plot         │◄─── Plot with val + test
+│   5. Delete trigger file            │
+└─────────────────────────────────────┘
+```
+
+### Key Features
+
+1. **Automatic Grading**: Grading happens automatically after each iteration via trigger files
+2. **Smart Data Preservation**: Container reloads JSON before updating to preserve grading results
+3. **Single Plot Source**: Only grading script generates plots (simpler, more elegant)
+4. **Real-Time Updates**: All files written directly to host's runs directory
+5. **No Popups**: Plots saved silently using matplotlib Agg backend
+
+## Agent Configuration
+
+### Environment Variables
+
+Set in `container.env`:
+```bash
+OPENAI_API_KEY=your_key_here
+OPENAI_MODEL=gpt-4
+OPENAI_BASE_URL=https://api.openai.com/v1
+```
+
+### Config Parameters
+
+Edit `config.yaml`:
 ```yaml
-vars:
-  script_execution_timeout: 7200      # Max time for baseline execution (2 hours)
-  cli_timeout: 43200                  # Max time for entire workflow (12 hours)
-  cli_max_iterations: 2               # Number of hypothesis evolution cycles
-  batch_size: 5                       # Hypotheses generated per iteration
-  ensemble_n: 3                       # Number of top models to ensemble
+name: co-datascientist
+version: 1.0.0
+privileged: true  # Required for Docker-in-Docker
+timeout: 14400    # 4 hours
+env_vars:
+  OPENAI_API_KEY: ${OPENAI_API_KEY}
+  OPENAI_MODEL: ${OPENAI_MODEL}
+  OPENAI_BASE_URL: ${OPENAI_BASE_URL}
 ```
 
-### Environment Variables (`container.env`)
+## Advanced Usage
 
-Required variables:
+### Multiple Competitions
 
 ```bash
-AZURE_OPENAI_API_KEY=your_api_key_here
+# Create competition list
+cat > competitions.txt << EOF
+random-acts-of-pizza
+spaceship-titanic
+house-prices-advanced-regression-techniques
+EOF
+
+# Run on all competitions
+python run_agent.py \
+  --agent-id co-datascientist \
+  --competition-set competitions.txt \
+  --n-workers 1 \
+  --n-seeds 1
 ```
 
-Optional (set via config.yaml instead):
+### Custom Iterations
+
+Edit `adapter/cli_mle.py`:
+```python
+max_evolution_iterations = 5  # Default, change as needed
+```
+
+### Manual Grading
+
+If auto-grader isn't running:
+```bash
+LATEST=$(ls -td runs/*co-datascientist*/*/ | head -1)
+python agents/co-datascientist/utils/grade_submissions.py "$LATEST"
+```
+
+### Stop Everything
 
 ```bash
-SCRIPT_EXECUTION_TIMEOUT=7200
-CLI_TIMEOUT=43200
-CLI_MAX_ITERATIONS=2
-BATCH_SIZE=5
-ENSEMBLE_N=3
+# Stop containers
+docker stop $(docker ps -q)
+
+# Stop agent processes
+pkill -f "run_agent.py"
+
+# Stop auto-grader
+pkill -f "auto_grader_watcher.py"
 ```
 
-### Package Dependencies (`pyproject.toml`)
+## Troubleshooting
 
-The engine is installed as a package! Two modes:
+### Auto-grading not working?
 
-**Production (default):** Install from GitHub
-```toml
-[tool.uv.sources]
-co-datascientist-engine = { git = "https://github.com/TropiFloAI/co-datascientist-engine.git", branch = "master" }
-```
-
-**Local Development:** Use editable install
-```toml
-[tool.uv.sources]
-co-datascientist-engine = { path = "../../../co-datascientist-engine", editable = true }
-```
-
----
-
-## 🔧 Development Workflow
-
-### Making Code Changes
-
-**Engine Changes:**
-1. Edit code in `/path/to/co-datascientist-engine/`
-2. Changes are automatically used if using local editable install
-3. Rebuild Docker image: `docker build -t co-datascientist -f agents/co-datascientist/Dockerfile agents/co-datascientist`
-
-**Adapter Changes:**
-1. Edit code in `agents/co-datascientist/adapter/`
-2. Rebuild Docker image (same command as above)
-
-**Baseline Changes:**
-1. Edit/add files in `agents/co-datascientist/baselines/`
-2. Rebuild Docker image
-
-### Using Local Engine During Development
-
-Edit `pyproject.toml`:
-
-```toml
-[tool.uv.sources]
-# Comment out the GitHub line
-# co-datascientist-engine = { git = "https://...", branch = "master" }
-
-# Uncomment the local path
-co-datascientist-engine = { path = "../../../co-datascientist-engine", editable = true }
-```
-
-Then rebuild the Docker image.
-
-### Adding New Baselines
-
-Create a new baseline script in `baselines/`:
-
-```bash
-# baselines/my-competition.py
-import pandas as pd
-from sklearn.ensemble import RandomForestClassifier
-# ... your baseline code ...
-```
-
-The script filename must match the competition ID: `{competition-id}.py`
-
-Rebuild the Docker image after adding baselines.
-
----
-
-## 🐛 Troubleshooting
-
-### Docker Build Fails
-
-**Issue**: Cannot find co-datascientist-engine package
-
-**Solution**: Check `pyproject.toml` - ensure Git URL is correct or local path exists
-
-```bash
-# Test package installation locally
-cd agents/co-datascientist
-pip install -e .
-```
-
-### Container Crashes Immediately
-
-**Issue**: Missing API key
-
-**Solution**: Ensure `container.env` exists and has valid `AZURE_OPENAI_API_KEY`
-
-### Competition Not Found
-
-**Issue**: `mlebench prepare` didn't download data
-
-**Solution**: Prepare the competition data first:
-
-```bash
-mlebench prepare -c competition-id
-```
-
-### Out of Memory
-
-**Issue**: Too many workers or large models
-
-**Solution**: Reduce `--n-workers` or increase Docker memory limits
-
-```bash
-# Check Docker memory
-docker info | grep -i memory
-
-# Run with fewer workers
-./run_benchmark.sh experiments/splits/lite.txt 1 1
-```
-
-### Image Rebuilds Too Slow
-
-**Issue**: Every rebuild takes 5+ minutes
-
-**Solution**: Use layer caching - only copy what changed:
-
-```dockerfile
-# Copy package definition first (rarely changes)
-COPY pyproject.toml ${AGENT_DIR}/pyproject.toml
-RUN pip install -e ${AGENT_DIR}
-
-# Copy code last (changes frequently)
-COPY adapter/ ${AGENT_DIR}/adapter/
-```
-
----
-
-## 📁 Results Structure
-
-After running benchmarks, results are saved in `mle-bench/runs/`:
-
-```
-runs/
-└── 2025-10-31T13-19-06-GMT_run-group_co-datascientist/
-    ├── metadata.json              # Run metadata
-    ├── submission.jsonl           # Submission file
-    ├── *_grading_report.json      # Grading results ⭐
-    └── competition-id_uuid/       # Per-competition results
-        ├── run.log                # Execution log
-        ├── submission/
-        │   └── submission.csv     # Competition submission
-        ├── code/                  # Generated code versions
-        └── logs/                  # Agent logs
-```
-
-Key files:
-- **Grading Report**: `*_grading_report.json` - Final scores and metrics
-- **Submission CSV**: `submission/submission.csv` - Model predictions
-- **Run Log**: `run.log` - Full execution trace
-- **Code Versions**: `code/*.py` - All generated hypothesis code
-
----
-
-## 🧪 Testing & Validation
-
-### Quick Smoke Test
-
-```bash
-# Run a single fast competition
-./agents/co-datascientist/run_benchmark.sh experiments/splits/trial.txt 1 1
-```
-
-### Validate Docker Setup
-
-```bash
-# Check images exist
-docker images | grep -E "mlebench-env|co-datascientist"
-
-# Test container can start
-docker run --rm co-datascientist /bin/bash -c "echo 'Container works!'"
-```
-
-### Verify Package Installation
-
-```bash
-# Enter container interactively
-docker run -it --rm co-datascientist /bin/bash
-
-# Inside container:
-conda activate agent
-python -c "import co_datascientist_engine; print('Engine installed!')"
-```
-
----
-
-## 🤝 Contributing
-
-### Adding New Competitions
-
-1. Get the competition ID from MLE-bench
-2. Create baseline in `baselines/{competition-id}.py`
-3. Test locally:
+1. **Check watcher is running**:
    ```bash
-   python baselines/competition-id.py
+   ps aux | grep auto_grader_watcher
    ```
-4. Add to a splits file (e.g., `experiments/splits/custom.txt`)
-5. Rebuild image and run
 
-### Improving Baselines
+2. **Check for trigger files** (should be deleted quickly):
+   ```bash
+   ls -la $LATEST/submission/.grade_trigger*
+   ```
 
-Edit existing baseline files and rebuild:
+3. **Check container created triggers**:
+   ```bash
+   grep "trigger" $LATEST/run.log
+   ```
 
-```bash
-vim agents/co-datascientist/baselines/spaceship-titanic.py
-docker build -t co-datascientist -f agents/co-datascientist/Dockerfile agents/co-datascientist
-```
+4. **Manually grade if needed**:
+   ```bash
+   python agents/co-datascientist/utils/grade_submissions.py "$LATEST"
+   ```
 
----
-
-## 📚 Additional Resources
-
-- **MLE-Bench Docs**: https://github.com/openai/mle-bench
-- **Co-DataScientist Engine**: https://github.com/TropiFloAI/co-datascientist-engine
-- **Competition Data**: Stored in `~/.cache/mle-bench/data/`
-- **Results Analysis**: See `experiments/make_submission.py` for custom reports
-
----
-
-## 🎯 Summary Cheat Sheet
+### Docker issues?
 
 ```bash
-# ONE-TIME SETUP
-cd /path/to/mle-bench
-python3 -m venv venv && source venv/bin/activate
-pip install -e .
-git lfs fetch --all && git lfs pull
-mlebench prepare --lite
-docker build -t mlebench-env -f environment/Dockerfile .
+# Clean up old containers and images
+docker stop $(docker ps -aq)
+docker rm $(docker ps -aq)
+docker system prune -af
 
-# CONFIGURE
-cd agents/co-datascientist
-cp container.env.example container.env
-# Edit container.env with API key
-
-# BUILD AGENT
-cd /path/to/mle-bench
-docker build -t co-datascientist -f agents/co-datascientist/Dockerfile agents/co-datascientist
-
-# RUN
-./agents/co-datascientist/run_benchmark.sh [competitions.txt] [workers] [seeds]
-
-# VIEW RESULTS
-cat runs/$(ls -t runs | head -1)/*_grading_report.json
+# Rebuild from scratch
+docker build --no-cache --platform=linux/amd64 -t mlebench-env -f environment/Dockerfile .
+cd /Users/ozkilim/Documents
+docker build --no-cache --platform=linux/amd64 -t co-datascientist -f mle-bench/agents/co-datascientist/Dockerfile .
 ```
 
+### Data not found?
+
+```bash
+# Check symlink
+ls -la ~/.mlebench/competitions
+
+# Re-symlink if needed
+ln -sf ~/Downloads/competitions ~/.mlebench/competitions
+
+# Prepare competition
+mlebench prepare -c <competition-id>
+```
+
+## File Structure
+
+```
+agents/co-datascientist/
+├── README.md                 # This file
+├── Dockerfile                # Agent Docker image
+├── config.yaml               # Agent configuration
+├── container.env             # Environment variables
+├── start.sh                  # Container entrypoint
+├── adapter/
+│   ├── main.py              # Main orchestration
+│   ├── cli_mle.py           # Evolution loop
+│   ├── handle_results.py    # Result processing & ensembling
+│   └── iteration_tracker.py # Tracking data management
+├── baselines/
+│   └── ...                  # Baseline models for each competition
+└── utils/
+    ├── grade_submissions.py      # Grading script (generates plot)
+    └── auto_grader_watcher.py    # Watches for triggers, runs grading
+```
+
+## Dependencies
+
+- **Python 3.12+**
+- **Docker** with platform=linux/amd64
+- **mlebench** (installed in venv)
+- **OpenAI API key** (or compatible endpoint)
+
+Python packages (in container):
+- smolagents
+- openai, litellm
+- pandas, numpy, scikit-learn
+- matplotlib (for plotting)
+- torch, torchvision
+
+## Performance Tips
+
+1. **Use overnight runs**: Agent takes 2-4 hours per competition
+2. **Monitor GPU/CPU**: Container uses significant resources
+3. **Check disk space**: Submissions and logs can grow large
+4. **Set realistic timeouts**: Default 4h, adjust in config.yaml
+5. **Use auto-grader**: No need to manually check results
+
+## Results
+
+After run completes, check:
+
+```bash
+# View final summary
+cat $LATEST/submission/performance_summary.json
+
+# View all tracked iterations
+cat $LATEST/submission/iteration_tracking.json | python3 -m json.tool
+
+# View final plot
+open $LATEST/submission/kpi_progression.png
+```
+
+## Known Issues & Limitations
+
+- **Requires prepared dataset**: Must run `mlebench prepare` first
+- **Docker-in-Docker**: Needs privileged mode
+- **OpenAI API**: Requires valid API key and sufficient credits
+- **Platform specific**: Built for linux/amd64 (runs via Rosetta on M1/M2 Macs)
+
+## Citation
+
+If you use this agent, please cite:
+
+```
+@article{chan2024mlebench,
+  title={MLE-bench: Evaluating Machine Learning Agents on Machine Learning Engineering},
+  author={Chan, Jun Shern and Pister, Neil and Wang, Jinu and Ostrow, Evan and Treutlein, Johannes and Bale, Michael and Li, Belinda and Huang, Stephanie and Phung, Jennifer and Scheurer, Jérémy and others},
+  journal={arXiv preprint arXiv:TODO},
+  year={2024}
+}
+```
+
+## Support
+
+For issues or questions:
+- Check the [main MLE-bench README](../../README.md)
+- Review logs in `runs/<run-group>/<competition>/run.log`
+- Inspect tracking data in `submission/iteration_tracking.json`
+
 ---
 
-## 💡 Design Rationale
-
-### Why Package-Based Architecture?
-
-**Before**: Split code across two repos with symlinks  
-**After**: Engine as package, adapter as consumer
-
-**Benefits:**
-- ✅ Engine repo unchanged (single source of truth)
-- ✅ No symlink management
-- ✅ Clean separation of concerns
-- ✅ Easy version control (pin engine versions)
-- ✅ Consistent with backend architecture
-- ✅ Standard Python packaging practices
-- ✅ Everything runs from one place (mle-bench)
-
-### Why Two Docker Images?
-
-**`mlebench-env` (base):**
-- Shared by all agents (AIDE, dummy, co-datascientist)
-- Rarely changes
-- Cached effectively
-
-**`co-datascientist` (agent):**
-- Extends base
-- Installs engine + adapter
-- Rebuilt frequently during development
-
-This 2-layer approach:
-- Faster rebuilds (only agent layer changes)
-- Consistent with MLE-bench standards
-- Better layer caching
-
----
-
-**Questions? Issues?** Check the troubleshooting section or open an issue on GitHub.
-
-**Happy Benchmarking! 🚀**
-
+**Status**: ✅ Production Ready  
+**Last Updated**: November 2025  
+**Version**: 2.0 (with auto-grading)

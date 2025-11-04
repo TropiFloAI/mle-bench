@@ -147,3 +147,5 @@ dmypy.json
 
 runs/
 agents/co-datascientist/container.env
+# macOS system files
+.DS_Store

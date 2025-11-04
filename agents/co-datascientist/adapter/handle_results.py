@@ -16,9 +16,10 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent / "local_runner"))
 from code_runner import run_python_code
 
-# Import performance tracker
+# Import performance tracker and iteration tracker
 sys.path.insert(0, str(Path(__file__).parent))
 from performance_tracker import PerformanceTracker
+from iteration_tracker import IterationTracker
 
 logger = logging.getLogger(__name__)
 
@@ -28,9 +29,11 @@ def handle_results(results: list[tuple[id: str, CodeResult]], result_file_paths:
     logger.info(f"Handling {len(results)} code results:")
     logger.info(results)
     
-    # Initialize performance tracker
+    # Initialize performance tracker and iteration tracker
     submission_dir = os.environ.get("SUBMISSION_DIR")
+    competition_id = os.environ.get("COMPETITION_ID", "unknown")
     tracker = PerformanceTracker(output_dir=submission_dir)
+    iter_tracker = IterationTracker(output_dir=submission_dir, competition_id=competition_id)
     
     # Track evolution statistics
     total_versions = len(results)
@@ -54,27 +57,54 @@ def handle_results(results: list[tuple[id: str, CodeResult]], result_file_paths:
         )
         logger.info(f"🧬 Best validation KPI: {best_val_kpi} (from {total_versions} versions)")
     
-    # Get files to ensemble and track top 3
-    files, top3_info = get_files_to_ensemble(results, result_file_paths, interpreter_path)
+    # Get files to ensemble and track top N
+    # Defensive: ensure we have at least 1 valid result
+    valid_results = [r for r in results if r[1].kpi is not None]
+    if len(valid_results) == 0:
+        logger.error("❌ No valid results to ensemble! All code versions failed.")
+        return
+    
+    files, top_n_info = get_files_to_ensemble(results, result_file_paths, interpreter_path)
     
     # Track ensemble selection
     tracker.set_ensemble(
-        top3_ids=top3_info['ids'],
-        top3_kpis=top3_info['kpis']
+        top3_ids=top_n_info['ids'],
+        top3_kpis=top_n_info['kpis']
     )
-    logger.info(f"🎯 Top 3 ensemble - Val KPIs: {top3_info['kpis']}")
+    logger.info(f"🎯 Top {len(top_n_info['ids'])} ensemble - Val KPIs: {top_n_info['kpis']}")
     
     # Create ensemble
     ensemble_predictions(files, os.path.join(submission_dir, "submission.csv"))
     
-    # Print summary
+    # Grade the final ensemble submission and add to iteration tracker
+    # Final ensemble grading will be done by host-side script
+    logger.info("🏁 Final ensemble created - will be graded on host")
+    
+    # Print summaries
     tracker.print_summary()
     logger.info(f"📁 Performance summary saved to: {submission_dir}/performance_summary.json")
+    
+    # Print iteration tracking summary (includes all iterations + final ensemble)
+    iter_tracker.print_summary()
+    
+    # Note: Host-side grading will happen after container completes
+    # The run script will call grade_submissions.py to fill in test KPIs
+    logger.info("📊 Run complete - use utils/grade_submissions.py to grade all submissions on host")
 
 def get_files_to_ensemble(results, result_file_paths, interpreter_path="python"):
 
     # Number of files to ensemble is defined as an env variable
-    best_code_ids = get_best_codes(results, int(os.environ.get("ENSEMBLE_N",3)))
+    # Defensive: ensure we don't request more codes than we have
+    valid_results = [r for r in results if r[1].kpi is not None]
+    requested_n = int(os.environ.get("ENSEMBLE_N", 3))
+    actual_n = min(requested_n, len(valid_results))
+    
+    if actual_n == 0:
+        logger.error("❌ No valid codes to ensemble!")
+        return [], {'ids': [], 'kpis': []}
+    
+    logger.info(f"Ensembling top {actual_n} code version(s) (requested {requested_n}, available {len(valid_results)})")
+    best_code_ids = get_best_codes(results, actual_n)
     
     # Get KPIs for the top codes
     results_dict = {r[0]: r[1] for r in results}
@@ -111,7 +141,18 @@ def get_files_to_ensemble(results, result_file_paths, interpreter_path="python")
 
 def ensemble_predictions(files, output_file):
     
-    logger.info(f"Generating ensemble of {len(files)} files: {files}")
+    logger.info(f"Generating ensemble of {len(files)} file(s): {files}")
+    
+    # Defensive: handle single file case (no ensembling needed)
+    if len(files) == 0:
+        logger.error("❌ No files to ensemble!")
+        return
+    
+    if len(files) == 1:
+        logger.info("Only 1 file, copying directly as final submission (no ensembling)")
+        import shutil
+        shutil.copy(files[0], output_file)
+        return
 
     # Load all DataFrames
     dfs = [pd.read_csv(f) for f in files]

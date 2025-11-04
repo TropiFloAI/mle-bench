@@ -9,6 +9,8 @@ import sys
 from pathlib import Path
 import time
 import pandas as pd
+import shutil
+from datetime import datetime
 
 from dotenv import load_dotenv
 
@@ -22,6 +24,10 @@ import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent / "local_runner"))
 from code_runner import run_python_code
+
+# Import iteration tracker
+sys.path.insert(0, str(Path(__file__).parent))
+from iteration_tracker import IterationTracker
 
 load_dotenv()
 OUTPUT_FOLDER = os.environ.get("CODE_DIR","co_datascientist_output")
@@ -186,6 +192,14 @@ async def run(args):
     print(f"Workflow started: {workflow.workflow_id}")
     print("-" * 50)
     
+    # Initialize iteration tracker for live plotting
+    submission_dir = os.environ.get("SUBMISSION_DIR", "/home/submission")
+    competition_id = os.environ.get("COMPETITION_ID", "unknown")
+    tracker = IterationTracker(output_dir=submission_dir, competition_id=competition_id)
+    print(f"📊 Iteration tracker initialized")
+    print(f"   Plot will be saved to: {tracker.plot_file}")
+    print("-" * 50)
+    
     # Run the evolution loop using batch system
     iteration = 0
     start_time = time.time()
@@ -308,8 +322,49 @@ async def run(args):
         workflow = await engine.get_workflow(workflow.workflow_id)
         
         # Show progress
+        current_best_val_kpi = None
         if workflow.best_kpi is not None:
-            print(f"Current best KPI: {workflow.best_kpi:.6f}")
+            current_best_val_kpi = workflow.best_kpi
+            print(f"Current best KPI: {current_best_val_kpi:.6f}")
+        
+        # Track this iteration - grade the best submission so far
+        if workflow.best_code_version and current_best_val_kpi is not None:
+            best_code_id = workflow.best_code_version.code_version_id
+            submission_path = Path(submission_dir) / "submission.csv"
+            
+            # Save a copy of this iteration's submission
+            if submission_path.exists():
+                backup_path = Path(submission_dir) / f"submission_iter{iteration}.csv"
+                try:
+                    shutil.copy(submission_path, backup_path)
+                    print(f"   💾 Saved submission copy: {backup_path.name}")
+                except Exception as e:
+                    print(f"   ⚠️  Could not save backup: {e}")
+            
+            # Track and grade
+            try:
+                print(f"   📊 Recording iteration {iteration} (val_kpi={current_best_val_kpi:.6f})...")
+                tracker.record_iteration(
+                    iteration=iteration,
+                    val_kpi=current_best_val_kpi,
+                    submission_path=submission_path if submission_path.exists() else None,
+                    code_version_id=best_code_id
+                )
+                print(f"   ✅ Iteration {iteration} recorded successfully")
+                
+                # Create a trigger file for host-side grading
+                if submission_path.exists():
+                    try:
+                        # Write a trigger file that host can watch for
+                        trigger_file = Path(submission_dir) / f".grade_trigger_iter{iteration}"
+                        trigger_file.write_text(f"{iteration}\n{datetime.now().isoformat()}\n")
+                        print(f"   🎯 Grading trigger created for iteration {iteration}")
+                    except Exception as trigger_err:
+                        print(f"   ⚠️  Could not create grading trigger: {trigger_err}")
+            except Exception as e:
+                print(f"   ❌ ERROR recording iteration {iteration}: {e}")
+                import traceback
+                traceback.print_exc()
         
         print("-" * 50)
 
@@ -340,6 +395,9 @@ async def run(args):
     if workflow.best_kpi is not None:
         print(f"Final best KPI: {workflow.best_kpi:.6f}")
     print(f"Results saved to: {OUTPUT_FOLDER}/")
+    
+    # Print iteration tracking summary
+    tracker.print_summary()
 
     return all_results, all_result_file_paths
 

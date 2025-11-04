@@ -110,14 +110,28 @@ def run_in_container(
     Returns:
         Path to the output file.
     """
+    # For mlebench grading, mount the entire prepared directory structure
+    # which contains both public and private subdirectories
+    prepared_dir = competition.public_dir.parent.resolve().as_posix()
+    
+    # Mount submission directory to host run directory for real-time file access
+    submission_host_dir = (run_dir / "submission").resolve().as_posix()
+    Path(submission_host_dir).mkdir(parents=True, exist_ok=True)
+    
     volumes_config = {
         competition.public_dir.resolve().as_posix(): {
             "bind": "/home/data",
             "mode": "ro",
         },
-        competition.private_dir.resolve().as_posix(): {
-            "bind": f"/private/data/{competition.id}/prepared/private/",
+        # Mount the entire prepared directory for mlebench grading
+        prepared_dir: {
+            "bind": f"/private/data/{competition.id}/prepared/",
             "mode": "ro",
+        },
+        # Mount submission directory to host for real-time access
+        submission_host_dir: {
+            "bind": "/home/submission",
+            "mode": "rw",
         },
     }
 
@@ -128,6 +142,7 @@ def run_in_container(
         volumes_config=volumes_config,
         env_vars={
             "COMPETITION_ID": competition.id,
+            "MLEBENCH_DATA_DIR": "/private/data",  # For mlebench grading
             **agent.env_vars,
         },
         container_image=image,
