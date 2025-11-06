@@ -33,13 +33,116 @@ load_dotenv()
 OUTPUT_FOLDER = os.environ.get("CODE_DIR","co_datascientist_output")
 
 
+def compress_task_description(full_description: str, competition_id: str) -> str:
+    """
+    Use LLM to compress task description into focused 1000-word summary.
+    Caches result to avoid re-compression on reruns.
+    
+    Compresses the full competition description to focus on what matters for
+    ML hypothesis generation: task, data, metrics, constraints, submission format.
+    Removes: prizes, timelines, sponsors, citations.
+    """
+    import litellm
+    import hashlib
+    
+    # Check cache first (based on description hash)
+    cache_dir = Path("/tmp/task_description_cache")
+    cache_dir.mkdir(exist_ok=True)
+    
+    desc_hash = hashlib.md5(full_description.encode()).hexdigest()[:12]
+    cache_file = cache_dir / f"{competition_id}_{desc_hash}.txt"
+    
+    if cache_file.exists():
+        compressed = cache_file.read_text()
+        print(f"✓ Using cached compressed description for '{competition_id}' ({len(compressed)} chars, ~{len(compressed.split())} words)")
+        return compressed
+    
+    # Compress using LLM
+    print(f"🤖 Compressing task description for '{competition_id}' (one-time operation)...")
+    
+    compression_prompt = f"""Extract and compress the following competition description into a focused 800-1000 word summary for an ML agent building a solution.
+
+Your goal is to provide RICH CONTEXT about the problem, NOT suggest solutions or approaches.
+
+Include ONLY what's essential for understanding the problem:
+- Core task objective (what needs to be predicted/solved)
+- Data overview (sizes, structure, splits)
+- Data fields/columns (name, type, description, usage notes) - be comprehensive
+- Evaluation metric (exactly how submissions are scored with formula - this is CRITICAL!)
+- Submission file format and exact requirements
+- Critical constraints, rules, or domain-specific insights
+- Key challenges, gotchas, and common pitfalls
+- What makes this problem difficult or unique
+
+EXCLUDE completely:
+- Prize amounts and monetary details
+- Competition timeline, deadlines, and dates
+- Sponsor information and background/history
+- Citation/attribution details
+- Team merger rules and administrative policies
+- Recommended approaches, solution strategies, or modeling suggestions (DO NOT include "Recommended Approach" or "Suggested Methods" sections)
+- Explicit feature engineering ideas or model architecture recommendations
+
+CRITICAL: Provide context about WHAT the problem is, not HOW to solve it. Let the agent generate its own hypotheses.
+
+Be direct, technical, and comprehensive. Preserve exact metric definitions and submission format details.
+
+Competition Description:
+{full_description}
+
+Compressed Technical Summary (800-1000 words, context-focused):"""
+
+    try:
+        # Use Azure OpenAI with same configuration as the engine
+        # Use cheaper/faster model for compression task (same as exploit_llm_model)
+        model = "azure/gpt-4.1-mini"
+        api_key = os.environ.get("AZURE_OPENAI_API_KEY")
+        api_base = "https://tropiflo.openai.azure.com"
+        api_version = "2024-12-01-preview"
+        
+        response = litellm.completion(
+            model=model,
+            messages=[{"role": "user", "content": compression_prompt}],
+            api_key=api_key,
+            api_base=api_base,
+            api_version=api_version,
+            temperature=0.2,  # Low temp for consistent, focused compression
+            max_tokens=1500,  # ~1000 words + buffer
+        )
+        
+        compressed = response.choices[0].message.content.strip()
+        
+        # Cache the result
+        cache_file.write_text(compressed)
+        
+        word_count = len(compressed.split())
+        print(f"✓ Compressed: {len(full_description)} → {len(compressed)} chars (~{word_count} words)")
+        print(f"✓ Cached to: {cache_file}")
+        
+        return compressed
+        
+    except Exception as e:
+        print(f"⚠ Compression failed: {e}")
+        print(f"⚠ Using full description as fallback")
+        return full_description
+
+
 def load_task_description():
     """
-    Load the task description markdown file from the data directory.
-    This provides context about the competition/task to the agent.
+    Load and compress the task description markdown file from the data directory.
+    This provides optimized context about the competition/task to the agent.
     
     MLE-bench mounts each competition's specific public_dir to /home/data,
     so description.md is always task-specific for the running competition.
+    
+    The description is automatically compressed to ~1000 words focusing on:
+    - Task objective and problem setup
+    - Data format and features
+    - Evaluation metrics
+    - Submission requirements
+    - Critical constraints
+    
+    Compression is cached to avoid repeated LLM calls.
     """
     data_dir = os.environ.get("DATA_DIR", "/home/data")
     competition_id = os.environ.get("COMPETITION_ID", "unknown")
@@ -50,7 +153,11 @@ def load_task_description():
             with open(description_path, 'r', encoding='utf-8') as f:
                 content = f.read()
             print(f"✓ Loaded task description for '{competition_id}' from {description_path} ({len(content)} chars)")
-            return content
+            
+            # Compress the description for better hypothesis generation
+            compressed_content = compress_task_description(content, competition_id)
+            
+            return compressed_content
         else:
             print(f"⚠ Task description not found at {description_path} for competition '{competition_id}'")
             return None
@@ -182,7 +289,7 @@ async def run(args):
     workflow = await engine.complete_preflight(workflow.workflow_id, [])
     
     # Load task description from markdown file and inject as context
-    task_description = load_task_description()
+    task_description = load_task_description() #TODO compress it with an LLM on the first run ... 
     if task_description:
         workflow.user_context_summary = task_description
         print(f"✓ Task description injected into workflow context")
