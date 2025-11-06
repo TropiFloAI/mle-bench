@@ -2,39 +2,98 @@
 
 Production-ready agent with real-time KPI tracking and automatic grading.
 
+## Prerequisites
+
+### Required Repositories
+
+Both repositories must be cloned in the same parent directory:
+
+```bash
+/your/working/path/
+├── mle-bench/
+└── co-datascientist-engine/
+```
+
+Clone both:
+
+```bash
+cd /your/working/path/
+git clone <mle-bench-repo-url>
+git clone <co-datascientist-engine-repo-url>
+```
+
+The engine code is installed as a Python package inside the Docker image at build time.
+
+### System Requirements
+
+- Python 3.12+
+- Docker with linux/amd64 support
+- OpenAI API key (or compatible endpoint)
+- ~10GB disk space for Docker images and data
+
 ## Quick Start
 
 ### 1. Setup Environment
 
 ```bash
-cd /Users/ozkilim/Documents/mle-bench
+cd /your/working/path/mle-bench
 
-# Activate virtual environment
+# Create and activate virtual environment
+python3.12 -m venv venv
 source venv/bin/activate
 
-# Ensure data is symlinked (don't move!)
-# If data is in ~/Downloads/competitions/:
-ln -s ~/Downloads/competitions ~/.mlebench/competitions
+# Install mlebench
+pip install -e .
 
-# Prepare a competition (example)
+# Symlink competition data (don't move the actual files!)
+ln -s /path/to/your/competitions ~/.mlebench/competitions
+
+# Prepare a competition
 mlebench prepare -c random-acts-of-pizza
 ```
 
-### 2. Build Docker Image
+### 2. Build Docker Images
+
+Build from the parent directory containing both repos:
 
 ```bash
-# Build base environment (one time, ~5-10 minutes)
-docker build --platform=linux/amd64 -t mlebench-env -f environment/Dockerfile .
+cd /your/working/path/
 
-# Build co-datascientist agent
-cd /Users/ozkilim/Documents
+# Verify both directories exist
+ls -d mle-bench co-datascientist-engine
+
+# Build base environment (~5-10 minutes, one time)
+docker build --platform=linux/amd64 -t mlebench-env -f mle-bench/environment/Dockerfile mle-bench
+
+# Build co-datascientist agent (uses both repos)
 docker build --platform=linux/amd64 -t co-datascientist -f mle-bench/agents/co-datascientist/Dockerfile .
 ```
 
-### 3. Run with Automatic Grading
+Note: The `.` at the end is required so Docker can access both directories.
+
+### 3. Configure Environment Variables
 
 ```bash
-cd /Users/ozkilim/Documents/mle-bench
+cd /your/working/path/mle-bench/agents/co-datascientist/
+
+# Copy example config if needed
+cp container.env.example container.env
+
+# Edit with your API credentials
+nano container.env
+```
+
+Set in `container.env`:
+```bash
+OPENAI_API_KEY=your_key_here
+OPENAI_MODEL=gpt-4
+OPENAI_BASE_URL=https://api.openai.com/v1
+```
+
+### 4. Run with Automatic Grading
+
+```bash
+cd /your/working/path/mle-bench
 source venv/bin/activate
 
 # Create competition list
@@ -48,28 +107,50 @@ python run_agent.py \
   --n-seeds 1 \
   > agent_run.log 2>&1 &
 
-# Wait ~20 seconds for run to start, then get run directory
+# Wait for run to start (~20 seconds)
 sleep 20
 LATEST=$(ls -td runs/*co-datascientist*/*/ 2>/dev/null | head -1)
 echo "Run directory: $LATEST"
 
-# Start auto-grader watcher for real-time grading
+# Start auto-grader for real-time grading
 python agents/co-datascientist/utils/auto_grader_watcher.py "$LATEST" &
-echo "Auto-grader started - will grade each iteration automatically"
+echo "Auto-grader started"
 ```
 
-### 4. Monitor Progress
+### 5. Monitor Progress
+
+For a single competition:
 
 ```bash
 # Watch tracking data update in real-time
 watch -n 10 "cat $LATEST/submission/iteration_tracking.json | python3 -m json.tool | head -50"
 
-# Or check the plot periodically (no auto-popup)
+# Check the plot
 open "$LATEST/submission/kpi_progression.png"
 
 # Check agent logs
 tail -f $LATEST/run.log
 ```
+
+For multiple competitions at once:
+
+```bash
+# Run the monitoring dashboard (from mle-bench root)
+cd /your/working/path/mle-bench
+./monitor_runs.sh
+
+# Or with auto-refresh (every 30 seconds)
+watch -n 30 ./monitor_runs.sh
+```
+
+The monitor shows a table with:
+- Competition name
+- Number of iterations completed
+- Runtime
+- Baseline and best validation KPI
+- Baseline and best test KPI
+- Medal status (Gold/Silver/Bronze)
+- Active Docker containers
 
 ## What You Get
 
@@ -78,11 +159,11 @@ tail -f $LATEST/run.log
 Located at: `runs/<run-group>/<competition>/submission/kpi_progression.png`
 
 The plot shows:
-- **Blue line (•)**: Validation KPI for each iteration
-- **Orange line (■)**: Test KPI for each graded iteration
-- **Gold/Silver/Bronze lines**: Medal thresholds
-- **X-axis**: Iteration number + timestamp (e.g., "#1\n14:50:52")
-- **Yellow annotation**: Best validation KPI
+- Blue line: Validation KPI for each iteration
+- Orange line: Test KPI for each graded iteration
+- Gold/Silver/Bronze lines: Medal thresholds
+- X-axis: Iteration number + timestamp
+- Yellow annotation: Best validation KPI
 
 ### Tracking Data
 
@@ -98,9 +179,9 @@ Contains:
       "iteration": 1,
       "timestamp": "2025-11-04T14:50:52.025157",
       "val_kpi": 0.7304,
-      "test_kpi": 0.70502,  ← Automatically graded
+      "test_kpi": 0.70502,
       "test_score_details": {
-        "bronze_medal": true  ← Medal achieved!
+        "bronze_medal": true
       },
       "code_version_id": "..."
     }
@@ -115,7 +196,7 @@ Contains:
 
 ### Output Files
 
-All files saved to: `runs/<run-group>/<competition>/submission/`
+All files in: `runs/<run-group>/<competition>/submission/`
 
 - `iteration_tracking.json` - Complete tracking data
 - `kpi_progression.png` - Live-updating plot
@@ -136,7 +217,7 @@ All files saved to: `runs/<run-group>/<competition>/submission/`
 │   2. Evaluate (get val_kpi)        │
 │   3. Save submission_iterN.csv     │
 │   4. Update tracking JSON          │
-│   5. Create .grade_trigger_iterN   │◄─── Trigger file
+│   5. Create .grade_trigger_iterN   │
 └─────────────────────────────────────┘
               ↓
     (Host detects trigger)
@@ -148,7 +229,7 @@ All files saved to: `runs/<run-group>/<competition>/submission/`
 │   1. Check for trigger files        │
 │   2. Grade submission_iterN.csv     │
 │   3. Update tracking JSON           │
-│   4. Generate complete plot         │◄─── Plot with val + test
+│   4. Generate complete plot         │
 │   5. Delete trigger file            │
 └─────────────────────────────────────┘
 ```
@@ -157,7 +238,7 @@ All files saved to: `runs/<run-group>/<competition>/submission/`
 
 1. **Automatic Grading**: Grading happens automatically after each iteration via trigger files
 2. **Smart Data Preservation**: Container reloads JSON before updating to preserve grading results
-3. **Single Plot Source**: Only grading script generates plots (simpler, more elegant)
+3. **Single Plot Source**: Only grading script generates plots
 4. **Real-Time Updates**: All files written directly to host's runs directory
 5. **No Popups**: Plots saved silently using matplotlib Agg backend
 
@@ -191,6 +272,9 @@ env_vars:
 ### Multiple Competitions
 
 ```bash
+cd /your/working/path/mle-bench
+source venv/bin/activate
+
 # Create competition list
 cat > competitions.txt << EOF
 random-acts-of-pizza
@@ -204,6 +288,9 @@ python run_agent.py \
   --competition-set competitions.txt \
   --n-workers 1 \
   --n-seeds 1
+
+# Monitor all competitions in real-time
+watch -n 30 ./monitor_runs.sh
 ```
 
 ### Custom Iterations
@@ -238,37 +325,49 @@ pkill -f "auto_grader_watcher.py"
 
 ### Auto-grading not working?
 
-1. **Check watcher is running**:
+1. Check watcher is running:
    ```bash
    ps aux | grep auto_grader_watcher
    ```
 
-2. **Check for trigger files** (should be deleted quickly):
+2. Check for trigger files (should be deleted quickly):
    ```bash
    ls -la $LATEST/submission/.grade_trigger*
    ```
 
-3. **Check container created triggers**:
+3. Check container created triggers:
    ```bash
    grep "trigger" $LATEST/run.log
    ```
 
-4. **Manually grade if needed**:
+4. Manually grade if needed:
    ```bash
    python agents/co-datascientist/utils/grade_submissions.py "$LATEST"
    ```
 
+### Rebuilding After Engine Updates
+
+If you update the `co-datascientist-engine` code:
+
+```bash
+cd /your/working/path/
+docker build --no-cache --platform=linux/amd64 -t co-datascientist -f mle-bench/agents/co-datascientist/Dockerfile .
+```
+
+The engine code is baked into the Docker image at build time, not mounted dynamically.
+
 ### Docker issues?
 
 ```bash
-# Clean up old containers and images
+cd /your/working/path/
+
+# Clean up
 docker stop $(docker ps -aq)
 docker rm $(docker ps -aq)
 docker system prune -af
 
 # Rebuild from scratch
-docker build --no-cache --platform=linux/amd64 -t mlebench-env -f environment/Dockerfile .
-cd /Users/ozkilim/Documents
+docker build --no-cache --platform=linux/amd64 -t mlebench-env -f mle-bench/environment/Dockerfile mle-bench
 docker build --no-cache --platform=linux/amd64 -t co-datascientist -f mle-bench/agents/co-datascientist/Dockerfile .
 ```
 
@@ -279,7 +378,7 @@ docker build --no-cache --platform=linux/amd64 -t co-datascientist -f mle-bench/
 ls -la ~/.mlebench/competitions
 
 # Re-symlink if needed
-ln -sf ~/Downloads/competitions ~/.mlebench/competitions
+ln -sf /path/to/your/competitions ~/.mlebench/competitions
 
 # Prepare competition
 mlebench prepare -c <competition-id>
@@ -308,10 +407,10 @@ agents/co-datascientist/
 
 ## Dependencies
 
-- **Python 3.12+**
-- **Docker** with platform=linux/amd64
-- **mlebench** (installed in venv)
-- **OpenAI API key** (or compatible endpoint)
+- Python 3.12+
+- Docker with platform=linux/amd64
+- mlebench (installed in venv)
+- OpenAI API key (or compatible endpoint)
 
 Python packages (in container):
 - smolagents
@@ -322,15 +421,15 @@ Python packages (in container):
 
 ## Performance Tips
 
-1. **Use overnight runs**: Agent takes 2-4 hours per competition
-2. **Monitor GPU/CPU**: Container uses significant resources
-3. **Check disk space**: Submissions and logs can grow large
-4. **Set realistic timeouts**: Default 4h, adjust in config.yaml
-5. **Use auto-grader**: No need to manually check results
+1. Use overnight runs: Agent takes 2-4 hours per competition
+2. Monitor GPU/CPU: Container uses significant resources
+3. Check disk space: Submissions and logs can grow large
+4. Set realistic timeouts: Default 4h, adjust in config.yaml
+5. Use auto-grader: No need to manually check results
 
 ## Results
 
-After run completes, check:
+After run completes:
 
 ```bash
 # View final summary
@@ -345,10 +444,10 @@ open $LATEST/submission/kpi_progression.png
 
 ## Known Issues & Limitations
 
-- **Requires prepared dataset**: Must run `mlebench prepare` first
-- **Docker-in-Docker**: Needs privileged mode
-- **OpenAI API**: Requires valid API key and sufficient credits
-- **Platform specific**: Built for linux/amd64 (runs via Rosetta on M1/M2 Macs)
+- Requires prepared dataset: Must run `mlebench prepare` first
+- Docker-in-Docker: Needs privileged mode
+- OpenAI API: Requires valid API key and sufficient credits
+- Platform specific: Built for linux/amd64 (runs via Rosetta on M1/M2 Macs)
 
 ## Citation
 
@@ -372,6 +471,6 @@ For issues or questions:
 
 ---
 
-**Status**: ✅ Production Ready  
+**Status**: Production Ready  
 **Last Updated**: November 2025  
 **Version**: 2.0 (with auto-grading)
